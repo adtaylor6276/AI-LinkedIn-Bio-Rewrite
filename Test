@@ -1,0 +1,1684 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkedIn Bio Rewriter</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      height: 100%;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 4px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+    
+    .fade-in {
+      animation: fadeIn 0.3s ease-in;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      animation: fadeIn 0.2s ease-in;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      padding: 32px;
+      max-width: 900px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      animation: slideUp 0.3s ease-out;
+      margin: auto;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .pricing-card {
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 28px;
+      transition: all 0.3s ease;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .pricing-card:hover {
+      border-color: #0a66c2;
+      box-shadow: 0 8px 24px rgba(10, 102, 194, 0.15);
+      transform: translateY(-4px);
+    }
+
+    .pricing-card.recommended {
+      border-color: #0a66c2;
+      border-width: 3px;
+      position: relative;
+    }
+
+    .recommended-badge {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #0a66c2, #0e5ca6);
+      color: white;
+      padding: 4px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+ </head>
+ <body class="h-full">
+  <div id="app" class="h-full overflow-auto custom-scrollbar"></div>
+  <script>
+    const defaultConfig = {
+      background_color: '#f5f5f5',
+      surface_color: '#ffffff',
+      text_color: '#2d2d2d',
+      primary_action_color: '#0a66c2',
+      secondary_action_color: '#6b7280',
+      font_family: 'Inter',
+      font_size: 16,
+      main_title: 'LinkedIn Bio Rewriter',
+      subtitle: 'Transform your LinkedIn bio into a powerful career asset with AI-powered professional copywriting',
+      rewrite_button: 'Rewrite My Bio',
+      reset_button: 'Reset',
+      copy_button: 'Copy Bio'
+    };
+
+    let appState = {
+      bioText: '',
+      industry: '',
+      otherIndustry: '',
+      tone: '',
+      targetRole: '',
+      targetAudience: '',
+      keyStrengths: '',
+      keywords: '',
+      certifications: '',
+      expertise: '',
+      cta: '',
+      moreInfoExpanded: false,
+      generatedBio: '',
+      isGenerating: false,
+      errorMessage: '',
+      copySuccess: false,
+      showUpgradeModal: false,
+      showUpgradeConfirmation: false,
+      showPricingPage: false,
+      whyProPlusExpanded: false,
+      annualPlanSelected: true,
+      softReminderDismissed: false,
+      userStatus: 'free',
+      todayUsageCount: 0,
+      lastUsageDate: null,
+      currentUserId: 'demo-user-123',
+      toneHistory: {},
+      industryHistory: {},
+      hasOptionalFields: false,
+      showQuarterlySnapshot: false,
+      lastSnapshotQuarter: null,
+      snapshotDismissed: false,
+      totalBiosRewritten: 0,
+      uniqueDaysActive: 0
+    };
+
+    let usageData = [];
+    let dataInitialized = false;
+
+    const industryToneMap = {
+      'Technology / IT': 'Professional',
+      'Healthcare': 'Formal',
+      'Finance / Banking': 'Executive',
+      'Education': 'Approachable',
+      'Manufacturing': 'Technical',
+      'Retail / eCommerce': 'Bold',
+      'Real Estate': 'Client-Facing',
+      'Legal / Professional Services': 'Formal',
+      'Marketing / Advertising / Media': 'Visionary',
+      'Government / Public Sector': 'Formal',
+      'Non-Profit': 'Approachable'
+    };
+
+    const industryPlaceholders = {
+      'Technology / IT': {
+        targetRole: 'Senior Software Engineer',
+        targetAudience: 'CTOs, Tech Leaders, Startup Founders',
+        keyStrengths: 'problem-solving, scalable architecture, agile methodology',
+        keywords: 'Cloud Computing, AI/ML, DevOps, Microservices',
+        certifications: 'AWS Certified Solutions Architect, Google Cloud Professional',
+        expertise: 'Python, React, Kubernetes, CI/CD pipelines',
+        cta: 'Open to discussing innovative tech projects and engineering leadership roles'
+      },
+      'Healthcare': {
+        targetRole: 'Healthcare Administrator',
+        targetAudience: 'Hospital Directors, Healthcare Executives, Medical Professionals',
+        keyStrengths: 'patient care excellence, regulatory compliance, team leadership',
+        keywords: 'Healthcare Management, Patient Safety, HIPAA Compliance',
+        certifications: 'FACHE, Certified Healthcare Administrator, Six Sigma',
+        expertise: 'EMR Systems, Healthcare Policy, Quality Improvement',
+        cta: 'Available for healthcare consulting and leadership opportunities'
+      },
+      'Finance / Banking': {
+        targetRole: 'Investment Director',
+        targetAudience: 'CFOs, Investment Committees, Financial Institutions',
+        keyStrengths: 'financial analysis, risk management, portfolio optimization',
+        keywords: 'Investment Strategy, Financial Planning, Asset Management',
+        certifications: 'CFA, CFP, Series 7 & 63',
+        expertise: 'Portfolio Management, Financial Modeling, Due Diligence',
+        cta: 'Open to discussing investment opportunities and financial advisory roles'
+      },
+      'Education': {
+        targetRole: 'Education Director',
+        targetAudience: 'School Boards, Educational Institutions, Parents',
+        keyStrengths: 'curriculum development, student engagement, innovative teaching',
+        keywords: 'Educational Leadership, Curriculum Design, Student Success',
+        certifications: 'EdD, State Teaching License, Educational Leadership Certificate',
+        expertise: 'Learning Management Systems, Assessment Design, EdTech',
+        cta: 'Passionate about transforming education and developing future leaders'
+      },
+      'Manufacturing': {
+        targetRole: 'Operations Manager',
+        targetAudience: 'Plant Directors, Supply Chain Leaders, Manufacturing Executives',
+        keyStrengths: 'process optimization, lean manufacturing, quality control',
+        keywords: 'Operational Excellence, Supply Chain, Continuous Improvement',
+        certifications: 'Six Sigma Black Belt, PMP, Lean Manufacturing Certified',
+        expertise: 'Production Planning, Quality Assurance, Inventory Management',
+        cta: 'Available for operations consulting and manufacturing leadership roles'
+      },
+      'Retail / eCommerce': {
+        targetRole: 'Digital Marketing Manager',
+        targetAudience: 'Brand Directors, eCommerce Leaders, Retail Executives',
+        keyStrengths: 'customer acquisition, conversion optimization, brand building',
+        keywords: 'Digital Marketing, eCommerce Growth, Customer Experience',
+        certifications: 'Google Analytics Certified, Meta Blueprint, Shopify Expert',
+        expertise: 'SEO/SEM, Social Media Marketing, Email Marketing, A/B Testing',
+        cta: 'Let\'s connect to discuss growth strategies and digital transformation'
+      },
+      'Real Estate': {
+        targetRole: 'Real Estate Broker',
+        targetAudience: 'Property Investors, Homebuyers, Commercial Clients',
+        keyStrengths: 'market analysis, negotiation, client relationships',
+        keywords: 'Real Estate Investment, Property Management, Market Strategy',
+        certifications: 'Licensed Real Estate Broker, CCIM, CPM',
+        expertise: 'Residential Sales, Commercial Leasing, Property Valuation',
+        cta: 'Ready to help you find your dream property or investment opportunity'
+      },
+      'Legal / Professional Services': {
+        targetRole: 'Senior Legal Counsel',
+        targetAudience: 'Corporate Executives, Legal Teams, Business Leaders',
+        keyStrengths: 'contract negotiation, regulatory compliance, risk mitigation',
+        keywords: 'Corporate Law, Compliance, Legal Strategy',
+        certifications: 'JD, State Bar License, Certified Compliance Professional',
+        expertise: 'Contract Law, Intellectual Property, Corporate Governance',
+        cta: 'Available for legal consulting and in-house counsel opportunities'
+      },
+      'Marketing / Advertising / Media': {
+        targetRole: 'Creative Director',
+        targetAudience: 'Brand Managers, Marketing Executives, Agency Leaders',
+        keyStrengths: 'creative vision, brand storytelling, campaign management',
+        keywords: 'Brand Strategy, Content Marketing, Creative Direction',
+        certifications: 'Google Ads Certified, HubSpot Content Marketing, Canva Certified',
+        expertise: 'Advertising Campaigns, Brand Identity, Social Media Strategy',
+        cta: 'Let\'s create campaigns that captivate and convert'
+      },
+      'Government / Public Sector': {
+        targetRole: 'Public Policy Analyst',
+        targetAudience: 'Government Officials, Policy Makers, Public Administrators',
+        keyStrengths: 'policy analysis, stakeholder engagement, public service',
+        keywords: 'Public Administration, Policy Development, Government Relations',
+        certifications: 'MPA, Certified Government Auditing Professional',
+        expertise: 'Legislative Analysis, Program Evaluation, Budget Management',
+        cta: 'Committed to serving the public interest and policy innovation'
+      },
+      'Non-Profit': {
+        targetRole: 'Non-Profit Director',
+        targetAudience: 'Donors, Board Members, Community Leaders, Volunteers',
+        keyStrengths: 'fundraising, community engagement, mission-driven leadership',
+        keywords: 'Non-Profit Management, Fundraising, Social Impact',
+        certifications: 'CFRE, Non-Profit Leadership Certificate, Grant Writing Certified',
+        expertise: 'Donor Relations, Program Development, Grant Writing',
+        cta: 'Passionate about making a difference and creating positive social change'
+      },
+      'Other': {
+        targetRole: 'Professional',
+        targetAudience: 'Industry Leaders, Potential Clients, Collaborators',
+        keyStrengths: 'leadership, innovation, results-driven approach',
+        keywords: 'Strategic Planning, Team Leadership, Business Development',
+        certifications: 'Industry-specific certifications',
+        expertise: 'Core competencies in your field',
+        cta: 'Open to new opportunities and meaningful connections'
+      }
+    };
+
+    const dataHandler = {
+      onDataChanged(data) {
+        usageData = data;
+        updateUsageState();
+        if (dataInitialized) {
+          checkAndShowQuarterlySnapshot();
+          renderApp();
+        }
+      }
+    };
+
+    async function initializeDataSDK() {
+      if (window.dataSdk) {
+        const result = await window.dataSdk.init(dataHandler);
+        if (result.isOk) {
+          dataInitialized = true;
+        }
+      }
+    }
+
+    function getCurrentQuarter() {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const quarter = Math.floor(month / 3) + 1;
+      return `${year}-Q${quarter}`;
+    }
+
+    function checkAndShowQuarterlySnapshot() {
+      if (appState.userStatus !== 'paid') {
+        appState.showQuarterlySnapshot = false;
+        return;
+      }
+
+      const currentQuarter = getCurrentQuarter();
+      const lastQuarter = appState.lastSnapshotQuarter;
+
+      if (currentQuarter !== lastQuarter && !appState.snapshotDismissed && appState.totalBiosRewritten > 0) {
+        appState.showQuarterlySnapshot = true;
+      } else {
+        appState.showQuarterlySnapshot = false;
+      }
+    }
+
+    async function dismissQuarterlySnapshot() {
+      const userRecord = usageData.find(record => record.user_id === appState.currentUserId);
+      const currentQuarter = getCurrentQuarter();
+
+      if (userRecord) {
+        const updatedRecord = {
+          ...userRecord,
+          last_snapshot_quarter: currentQuarter,
+          snapshot_dismissed: true
+        };
+
+        const result = await window.dataSdk.update(updatedRecord);
+        if (result.isOk) {
+          appState.showQuarterlySnapshot = false;
+          appState.lastSnapshotQuarter = currentQuarter;
+          appState.snapshotDismissed = true;
+          renderApp();
+        }
+      }
+    }
+
+    function getTodayDateString() {
+      const today = new Date();
+      return today.toISOString().split('T')[0];
+    }
+
+    function updateUsageState() {
+      const today = getTodayDateString();
+      const userRecord = usageData.find(record => record.user_id === appState.currentUserId);
+      
+      if (userRecord) {
+        appState.userStatus = userRecord.user_status || 'free';
+        appState.totalBiosRewritten = userRecord.total_bios_rewritten || 0;
+        appState.uniqueDaysActive = userRecord.unique_days_active || 0;
+        appState.lastSnapshotQuarter = userRecord.last_snapshot_quarter || null;
+        appState.snapshotDismissed = userRecord.snapshot_dismissed || false;
+        
+        try {
+          appState.toneHistory = userRecord.tone_history ? JSON.parse(userRecord.tone_history) : {};
+        } catch (e) {
+          appState.toneHistory = {};
+        }
+        
+        try {
+          appState.industryHistory = userRecord.industry_history ? JSON.parse(userRecord.industry_history) : {};
+        } catch (e) {
+          appState.industryHistory = {};
+        }
+        
+        if (userRecord.usage_date === today) {
+          appState.todayUsageCount = userRecord.usage_count || 0;
+          appState.lastUsageDate = userRecord.usage_date;
+        } else {
+          appState.todayUsageCount = 0;
+          appState.lastUsageDate = null;
+        }
+      } else {
+        appState.userStatus = 'free';
+        appState.todayUsageCount = 0;
+        appState.lastUsageDate = null;
+        appState.totalBiosRewritten = 0;
+        appState.uniqueDaysActive = 0;
+        appState.toneHistory = {};
+        appState.industryHistory = {};
+        appState.lastSnapshotQuarter = null;
+        appState.snapshotDismissed = false;
+      }
+    }
+
+    function canUserRewrite() {
+      if (appState.userStatus === 'paid') {
+        return true;
+      }
+      
+      const today = getTodayDateString();
+      if (appState.lastUsageDate !== today) {
+        return true;
+      }
+      
+      return appState.todayUsageCount < 1;
+    }
+
+    async function incrementUsage() {
+      const today = getTodayDateString();
+      const userRecord = usageData.find(record => record.user_id === appState.currentUserId);
+      
+      const updatedToneHistory = {...appState.toneHistory};
+      if (appState.tone) {
+        updatedToneHistory[appState.tone] = (updatedToneHistory[appState.tone] || 0) + 1;
+      }
+      
+      const updatedIndustryHistory = {...appState.industryHistory};
+      const industryKey = appState.industry === 'Other' ? appState.otherIndustry : appState.industry;
+      if (industryKey) {
+        updatedIndustryHistory[industryKey] = (updatedIndustryHistory[industryKey] || 0) + 1;
+      }
+      
+      if (userRecord) {
+        const isNewDay = userRecord.usage_date !== today;
+        const updatedRecord = {
+          ...userRecord,
+          usage_date: today,
+          usage_count: isNewDay ? 1 : (userRecord.usage_count || 0) + 1,
+          total_bios_rewritten: (userRecord.total_bios_rewritten || 0) + 1,
+          unique_days_active: isNewDay ? (userRecord.unique_days_active || 0) + 1 : (userRecord.unique_days_active || 0),
+          tone_history: JSON.stringify(updatedToneHistory),
+          industry_history: JSON.stringify(updatedIndustryHistory),
+          last_tone: appState.tone,
+          last_industry: industryKey
+        };
+        
+        const result = await window.dataSdk.update(updatedRecord);
+        if (!result.isOk) {
+          console.error('Failed to update usage');
+        }
+      } else {
+        const result = await window.dataSdk.create({
+          user_id: appState.currentUserId,
+          usage_date: today,
+          usage_count: 1,
+          user_status: 'free',
+          total_bios_rewritten: 1,
+          unique_days_active: 1,
+          tone_history: JSON.stringify(updatedToneHistory),
+          industry_history: JSON.stringify(updatedIndustryHistory),
+          last_tone: appState.tone,
+          last_industry: industryKey,
+          last_snapshot_quarter: null,
+          snapshot_dismissed: false
+        });
+        if (!result.isOk) {
+          console.error('Failed to create usage record');
+        }
+      }
+    }
+
+    async function resetUsageCounter() {
+      const userRecord = usageData.find(record => record.user_id === appState.currentUserId);
+      
+      if (userRecord) {
+        const updatedRecord = {
+          ...userRecord,
+          usage_count: 0,
+          usage_date: getTodayDateString()
+        };
+        
+        const result = await window.dataSdk.update(updatedRecord);
+        if (result.isOk) {
+          console.log('Counter reset successfully');
+        }
+      } else {
+        appState.todayUsageCount = 0;
+        appState.lastUsageDate = null;
+        renderApp();
+      }
+    }
+
+    async function upgradeToPaid() {
+      const userRecord = usageData.find(record => record.user_id === appState.currentUserId);
+      
+      if (userRecord) {
+        const updatedRecord = {
+          ...userRecord,
+          user_status: 'paid'
+        };
+        
+        const result = await window.dataSdk.update(updatedRecord);
+        if (result.isOk) {
+          appState.userStatus = 'paid';
+          appState.showUpgradeModal = false;
+          appState.showPricingPage = false;
+          appState.showUpgradeConfirmation = true;
+          renderApp();
+          
+          setTimeout(() => {
+            appState.showUpgradeConfirmation = false;
+            renderApp();
+          }, 5000);
+        }
+      } else {
+        const result = await window.dataSdk.create({
+          user_id: appState.currentUserId,
+          usage_date: getTodayDateString(),
+          usage_count: 0,
+          user_status: 'paid',
+          total_bios_rewritten: 0,
+          unique_days_active: 0,
+          tone_history: '{}',
+          industry_history: '{}',
+          last_tone: '',
+          last_industry: '',
+          last_snapshot_quarter: null,
+          snapshot_dismissed: false
+        });
+        
+        if (result.isOk) {
+          appState.userStatus = 'paid';
+          appState.showUpgradeModal = false;
+          appState.showPricingPage = false;
+          appState.showUpgradeConfirmation = true;
+          renderApp();
+          
+          setTimeout(() => {
+            appState.showUpgradeConfirmation = false;
+            renderApp();
+          }, 5000);
+        }
+      }
+    }
+
+    function generateQuarterlySnapshot() {
+      const snapshot = {
+        overallReadiness: '',
+        strengths: '',
+        growthOpportunities: '',
+        careerSignals: '',
+        strategicFocus: ''
+      };
+
+      const mostUsedTone = getMostUsedTone();
+      const currentIndustry = getCurrentIndustryName();
+      const toneVariety = Object.keys(appState.toneHistory).length;
+      const hasOptionalInputs = appState.hasOptionalFields;
+      const biosRewritten = appState.totalBiosRewritten;
+
+      if (biosRewritten >= 5) {
+        snapshot.overallReadiness = 'You are well positioned for new professional opportunities based on how you\'ve been refining your LinkedIn presence and professional messaging.';
+      } else if (biosRewritten >= 2) {
+        snapshot.overallReadiness = 'You are actively strengthening your professional positioning. Continued refinement will further enhance your readiness for career opportunities.';
+      } else {
+        snapshot.overallReadiness = 'You are taking important first steps in refining your professional presence. Consistent attention to your positioning will build momentum over time.';
+      }
+
+      if (mostUsedTone && currentIndustry) {
+        const alignmentCheck = industryToneMap[currentIndustry] === mostUsedTone ? 
+          ', which aligns naturally with industry expectations' : '';
+        snapshot.strengths = `Your consistent use of a **${mostUsedTone}** tone signals ${getToneStrengthDescription(mostUsedTone)} within the **${currentIndustry}** industry${alignmentCheck}.`;
+      } else if (mostUsedTone) {
+        snapshot.strengths = `Your consistent use of a **${mostUsedTone}** tone demonstrates ${getToneStrengthDescription(mostUsedTone)} in your professional communication.`;
+      } else {
+        snapshot.strengths = 'You are building a foundation for clear, confident professional messaging.';
+      }
+
+      if (toneVariety <= 1) {
+        snapshot.growthOpportunities = 'You may benefit from exploring complementary tones to see how different positioning approaches resonate with your target audience.';
+      } else if (!hasOptionalInputs) {
+        snapshot.growthOpportunities = 'You may benefit from clarifying your target role more explicitly to strengthen how decision-makers understand your career direction.';
+      } else {
+        snapshot.growthOpportunities = 'Consider refining how you articulate specific outcomes and impact to differentiate your positioning further.';
+      }
+
+      if (biosRewritten >= 5 && toneVariety > 1) {
+        snapshot.careerSignals = 'Your current profile communicates adaptability, thoughtful self-positioning, and readiness for increased responsibility.';
+      } else if (biosRewritten >= 3) {
+        snapshot.careerSignals = 'Your current profile communicates stability, experience, and readiness for increased responsibility.';
+      } else {
+        snapshot.careerSignals = 'Your current profile communicates professionalism and an evolving sense of career direction.';
+      }
+
+      if (!hasOptionalInputs) {
+        snapshot.strategicFocus = 'In the coming quarter, focus on clarifying your target role and key strengths to support clearer positioning for advancement or new opportunities.';
+      } else if (toneVariety <= 1) {
+        snapshot.strategicFocus = 'In the coming quarter, focus on experimenting with tone to identify the positioning approach that best serves your career goals.';
+      } else {
+        snapshot.strategicFocus = 'In the coming quarter, focus on refining how you communicate impact and outcomes to support advancement or new opportunities.';
+      }
+
+      return snapshot;
+    }
+
+    function getToneStrengthDescription(tone) {
+      const descriptions = {
+        'Professional': 'credibility and strategic focus',
+        'Formal': 'authority and professional standards',
+        'Executive': 'leadership alignment and executive presence',
+        'Approachable': 'collaboration and relationship-building',
+        'Technical': 'expertise and precision',
+        'Bold': 'confidence and innovative thinking',
+        'Client-Facing': 'client focus and relationship strength',
+        'Visionary': 'forward-thinking perspective and strategic vision'
+      };
+      return descriptions[tone] || 'professional clarity';
+    }
+
+    function getMostUsedTone() {
+      let maxCount = 0;
+      let mostUsed = '';
+      for (const [tone, count] of Object.entries(appState.toneHistory)) {
+        if (count > maxCount) {
+          maxCount = count;
+          mostUsed = tone;
+        }
+      }
+      return mostUsed;
+    }
+
+    function getCurrentIndustryName() {
+      let maxCount = 0;
+      let mostUsed = '';
+      for (const [industry, count] of Object.entries(appState.industryHistory)) {
+        if (count > maxCount) {
+          maxCount = count;
+          mostUsed = industry;
+        }
+      }
+      return mostUsed;
+    }
+
+    function generatePersonalizedInsights() {
+      const insights = [];
+      const mostUsedTone = getMostUsedTone();
+      const currentIndustry = getCurrentIndustryName();
+      
+      if (mostUsedTone && currentIndustry && industryToneMap[currentIndustry]) {
+        if (industryToneMap[currentIndustry] === mostUsedTone) {
+          insights.push({
+            icon: '✅',
+            label: 'Tone Alignment',
+            message: `Your **${mostUsedTone}** tone aligns perfectly with **${currentIndustry}** industry standards, creating a natural fit for your target audience.`
+          });
+        } else {
+          insights.push({
+            icon: '💡',
+            label: 'Tone Strategy',
+            message: `You're using a **${mostUsedTone}** tone in **${currentIndustry}**, which can differentiate you if it matches your personal brand. Consider testing **${industryToneMap[currentIndustry]}** tone as well.`
+          });
+        }
+      }
+
+      const toneCount = Object.keys(appState.toneHistory).length;
+      if (toneCount > 2) {
+        insights.push({
+          icon: '🎯',
+          label: 'Experimentation',
+          message: 'You\'ve tried multiple tones—this shows you\'re actively refining your professional positioning. Consider focusing on the one that feels most authentic to you.'
+        });
+      }
+
+      if (appState.totalBiosRewritten >= 5) {
+        insights.push({
+          icon: '🚀',
+          label: 'Continuous Improvement',
+          message: 'Your consistent refinement demonstrates a commitment to professional growth. This level of attention to detail often correlates with career advancement.'
+        });
+      }
+
+      return insights;
+    }
+
+    function generateNextBestActions() {
+      const actions = [];
+      
+      if (!appState.hasOptionalFields) {
+        actions.push({
+          icon: '📝',
+          label: 'Add More Context',
+          message: 'Include your target role, key strengths, and industry keywords in the optional fields for more tailored results.'
+        });
+      }
+
+      actions.push({
+        icon: '🔄',
+        label: 'Test Different Tones',
+        message: 'Try rewriting your bio with 2-3 different tones to see which resonates best with your target audience.'
+      });
+
+      actions.push({
+        icon: '👥',
+        label: 'Get Feedback',
+        message: 'Share your new bio with trusted colleagues or mentors and ask for their honest feedback on clarity and impact.'
+        });
+
+      if (appState.userStatus === 'free') {
+        actions.push({
+          icon: '⚡',
+          label: 'Unlock More Tools',
+          message: 'Consider Pro Plus for quarterly snapshots and new career tools added monthly.'
+        });
+      }
+
+      return actions;
+    }
+
+    async function generateBio() {
+      appState.isGenerating = true;
+      appState.errorMessage = '';
+      appState.generatedBio = '';
+      renderApp();
+
+      await incrementUsage();
+
+      appState.hasOptionalFields = !!(
+        appState.targetRole ||
+        appState.targetAudience ||
+        appState.keyStrengths ||
+        appState.keywords ||
+        appState.certifications ||
+        appState.expertise ||
+        appState.cta
+      );
+
+      setTimeout(() => {
+        const industryName = appState.industry === 'Other' ? appState.otherIndustry : appState.industry;
+        appState.generatedBio = `[DEMO] This is your rewritten LinkedIn bio using a ${appState.tone} tone for the ${industryName} industry.\n\n${appState.bioText}\n\n✨ This bio has been optimized for professional impact and clarity.\n\n💡 Pro tip: Regularly updating your LinkedIn bio keeps your profile fresh and aligned with your career goals.`;
+        appState.isGenerating = false;
+        renderApp();
+      }, 1500);
+    }
+
+    function renderApp() {
+      const config = window.elementSdk?.config || defaultConfig;
+      const customFont = config.font_family || defaultConfig.font_family;
+      const baseFontSize = config.font_size || defaultConfig.font_size;
+      const bgColor = config.background_color || defaultConfig.background_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const secondaryColor = config.secondary_action_color || defaultConfig.secondary_action_color;
+
+      const app = document.getElementById('app');
+      app.style.backgroundColor = bgColor;
+      app.style.color = textColor;
+      app.style.fontFamily = `${customFont}, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
+
+      if (appState.showPricingPage) {
+        renderPricingPage(app, config, customFont, baseFontSize, bgColor, surfaceColor, textColor, primaryColor, secondaryColor);
+        return;
+      }
+
+      const isDisabled = appState.isGenerating;
+
+      app.innerHTML = `
+        <div style="max-width: 1000px; margin: 0 auto; padding: ${baseFontSize * 2}px ${baseFontSize * 1.5}px;">
+          ${appState.showUpgradeConfirmation ? `
+            <div style="background: ${surfaceColor}; border-radius: ${baseFontSize * 0.75}px; padding: ${baseFontSize * 2}px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); margin-bottom: ${baseFontSize * 2}px; border: 2px solid #10b981;" class="fade-in">
+              <div style="text-align: center;">
+                <div style="width: ${baseFontSize * 4}px; height: ${baseFontSize * 4}px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 50%; margin: 0 auto ${baseFontSize * 1.25}px; display: flex; align-items: center; justify-content: center;">
+                  <svg style="width: ${baseFontSize * 2.5}px; height: ${baseFontSize * 2.5}px; fill: white;" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                  </svg>
+                </div>
+                <h2 style="font-size: ${baseFontSize * 1.75}px; font-weight: 700; color: ${textColor}; margin: 0 0 ${baseFontSize * 0.75}px 0;">
+                  You're all set!
+                </h2>
+                <p style="font-size: ${baseFontSize * 1}px; color: ${textColor}; opacity: 0.8; line-height: 1.6; margin: 0 0 ${baseFontSize * 1}px 0; max-width: 600px; margin-left: auto; margin-right: auto;">
+                  You now have unlimited access to LinkedIn bio rewrites and all Pro Plus tools. You'll also receive quarterly career readiness snapshots.
+                </p>
+                <button 
+                  id="dismissSuccessBtn"
+                  style="background: ${primaryColor}; color: white; padding: ${baseFontSize * 0.875}px ${baseFontSize * 2}px; border: none; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 1}px; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.2s;"
+                  onmouseover="this.style.opacity='0.9'"
+                  onmouseout="this.style.opacity='1'">
+                  Start Using Pro Plus
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
+          ${appState.showQuarterlySnapshot && appState.userStatus === 'paid' ? (() => {
+            const snapshot = generateQuarterlySnapshot();
+            return `
+              <div style="background: linear-gradient(135deg, #6366f115, #6366f108); border-radius: ${baseFontSize * 0.75}px; padding: ${baseFontSize * 2.5}px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); margin-bottom: ${baseFontSize * 2}px; border-left: 4px solid #6366f1;" class="fade-in">
+                <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: ${baseFontSize * 1}px; margin-bottom: ${baseFontSize * 1.5}px; flex-wrap: wrap;">
+                  <div style="flex: 1; min-width: 280px;">
+                    <h2 style="font-size: ${baseFontSize * 1.625}px; font-weight: 700; color: ${textColor}; margin: 0 0 ${baseFontSize * 0.5}px 0; display: flex; align-items: center; gap: ${baseFontSize * 0.625}px;">
+                      <svg style="width: ${baseFontSize * 1.75}px; height: ${baseFontSize * 1.75}px; fill: #6366f1;" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                        <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                      </svg>
+                      Your Quarterly Career Readiness Snapshot
+                    </h2>
+                    <p style="font-size: ${baseFontSize * 0.875}px; color: ${textColor}; opacity: 0.7; margin: 0;">
+                      ${getCurrentQuarter()} • Pro Plus Exclusive
+                    </p>
+                  </div>
+                  <button 
+                    id="dismissSnapshotBtn"
+                    style="background: transparent; border: none; color: ${textColor}; opacity: 0.5; cursor: pointer; padding: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 1.25}px; line-height: 1; transition: opacity 0.2s; flex-shrink: 0;"
+                    onmouseover="this.style.opacity='0.8'"
+                    onmouseout="this.style.opacity='0.5'">
+                    ✕
+                  </button>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: ${baseFontSize * 1.5}px;">
+                  
+                  <div style="background: ${surfaceColor}; padding: ${baseFontSize * 1.5}px; border-radius: ${baseFontSize * 0.625}px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                    <p style="font-size: ${baseFontSize * 0.8125}px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #6366f1; margin: 0 0 ${baseFontSize * 0.75}px 0;">
+                      Overall readiness
+                    </p>
+                    <p style="font-size: ${baseFontSize * 1}px; color: ${textColor}; line-height: 1.7; margin: 0;">
+                      ${snapshot.overallReadiness}
+                    </p>
+                  </div>
+
+                  <div style="background: ${surfaceColor}; padding: ${baseFontSize * 1.5}px; border-radius: ${baseFontSize * 0.625}px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                    <p style="font-size: ${baseFontSize * 0.8125}px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #10b981; margin: 0 0 ${baseFontSize * 0.75}px 0;">
+                      What's working in your favor
+                    </p>
+                    <p style="font-size: ${baseFontSize * 1}px; color: ${textColor}; line-height: 1.7; margin: 0;">
+                      ${snapshot.strengths.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}
+                    </p>
+                  </div>
+
+                  <div style="background: ${surfaceColor}; padding: ${baseFontSize * 1.5}px; border-radius: ${baseFontSize * 0.625}px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                    <p style="font-size: ${baseFontSize * 0.8125}px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #f59e0b; margin: 0 0 ${baseFontSize * 0.75}px 0;">
+                      Areas to strengthen next
+                    </p>
+                    <p style="font-size: ${baseFontSize * 1}px; color: ${textColor}; line-height: 1.7; margin: 0;">
+                      ${snapshot.growthOpportunities}
+                    </p>
+                  </div>
+
+                  <div style="background: ${surfaceColor}; padding: ${baseFontSize * 1.5}px; border-radius: ${baseFontSize * 0.625}px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                    <p style="font-size: ${baseFontSize * 0.8125}px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #8b5cf6; margin: 0 0 ${baseFontSize * 0.75}px 0;">
+                      Career signals you're sending
+                    </p>
+                    <p style="font-size: ${baseFontSize * 1}px; color: ${textColor}; line-height: 1.7; margin: 0;">
+                      ${snapshot.careerSignals}
+                    </p>
+                  </div>
+
+                  <div style="background: ${surfaceColor}; padding: ${baseFontSize * 1.5}px; border-radius: ${baseFontSize * 0.625}px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                    <p style="font-size: ${baseFontSize * 0.8125}px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #0ea5e9; margin: 0 0 ${baseFontSize * 0.75}px 0;">
+                      Recommended focus for the next quarter
+                    </p>
+                    <p style="font-size: ${baseFontSize * 1}px; color: ${textColor}; line-height: 1.7; margin: 0;">
+                      ${snapshot.strategicFocus}
+                    </p>
+                  </div>
+
+                </div>
+
+                <div style="display: flex; gap: ${baseFontSize * 0.75}px; margin-top: ${baseFontSize * 2}px; flex-wrap: wrap;">
+                  <button 
+                    id="snapshotRefineProfileBtn"
+                    style="flex: 1; min-width: 200px; background: ${primaryColor}; color: white; padding: ${baseFontSize * 0.875}px ${baseFontSize * 1.5}px; border: none; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 1}px; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.2s;"
+                    onmouseover="this.style.opacity='0.9'"
+                    onmouseout="this.style.opacity='1'">
+                    Refine my profile
+                  </button>
+                  <button 
+                    id="snapshotDismissBtn"
+                    style="background: transparent; color: ${textColor}; padding: ${baseFontSize * 0.875}px ${baseFontSize * 1.5}px; border: 2px solid ${textColor}30; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 1}px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.2s;"
+                    onmouseover="this.style.borderColor='${textColor}50'; this.style.background='${bgColor}'"
+                    onmouseout="this.style.borderColor='${textColor}30'; this.style.background='transparent'">
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            `;
+          })() : ''}
+
+          ${appState.userStatus === 'free' && !appState.softReminderDismissed ? `
+            <div style="background: linear-gradient(135deg, ${primaryColor}15, ${primaryColor}08); border-radius: ${baseFontSize * 0.75}px; padding: ${baseFontSize * 1.25}px ${baseFontSize * 1.5}px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: ${baseFontSize * 2}px; border-left: 4px solid ${primaryColor};" class="fade-in">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: ${baseFontSize * 1}px; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 280px;">
+                  <h3 style="font-size: ${baseFontSize * 1.125}px; font-weight: 700; color: ${textColor}; margin: 0 0 ${baseFontSize * 0.375}px 0;">
+                    New tools available in Pro Plus
+                  </h3>
+                  <p style="font-size: ${baseFontSize * 0.875}px; color: ${textColor}; opacity: 0.8; margin: 0; line-height: 1.5;">
+                    Unlock unlimited LinkedIn bio rewrites and get access to new career tools added every month.
+                  </p>
+                </div>
+                <div style="display: flex; align-items: center; gap: ${baseFontSize * 0.75}px;">
+                  <button 
+                    id="softReminderUpgradeBtn"
+                    style="background: ${primaryColor}; color: white; padding: ${baseFontSize * 0.75}px ${baseFontSize * 1.5}px; border: none; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.9375}px; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.2s; white-space: nowrap;"
+                    onmouseover="this.style.opacity='0.9'"
+                    onmouseout="this.style.opacity='1'">
+                    Upgrade to Pro Plus
+                  </button>
+                  <button 
+                    id="dismissSoftReminderBtn"
+                    style="background: transparent; color: ${textColor}; opacity: 0.6; padding: ${baseFontSize * 0.75}px ${baseFontSize * 1}px; border: none; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.875}px; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.2s; white-space: nowrap;"
+                    onmouseover="this.style.opacity='0.8'"
+                    onmouseout="this.style.opacity='0.6'">
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+
+          <header style="text-align: center; margin-bottom: ${baseFontSize * 2}px;">
+            <h1 style="font-size: ${baseFontSize * 2.25}px; font-weight: 700; margin-bottom: ${baseFontSize * 0.75}px; color: ${textColor};">
+              ${config.main_title || defaultConfig.main_title}
+            </h1>
+            <p style="font-size: ${baseFontSize * 1.0625}px; color: ${textColor}; opacity: 0.8; max-width: 700px; margin: 0 auto;">
+              ${config.subtitle || defaultConfig.subtitle}
+            </p>
+            
+            <div style="margin-top: ${baseFontSize * 1}px; display: flex; align-items: center; justify-content: center; gap: ${baseFontSize * 0.75}px; flex-wrap: wrap;">
+              <div style="padding: ${baseFontSize * 0.75}px ${baseFontSize * 1.25}px; background: ${appState.userStatus === 'paid' ? '#dcfce7' : '#fef3c7'}; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.875}px; font-weight: 600;">
+                ${appState.userStatus === 'paid' ? '✨ Pro Plus Member - Unlimited Rewrites' : `🎯 Free Plan - ${appState.todayUsageCount >= 1 ? 'Used today\'s free rewrite' : 'You have 1 free rewrite today'}`}
+              </div>
+              ${appState.userStatus === 'free' ? `
+                <button 
+                  id="viewPricingBtn"
+                  style="padding: ${baseFontSize * 0.75}px ${baseFontSize * 1.25}px; background: ${primaryColor}; color: white; border: none; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.875}px; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.2s;"
+                  onmouseover="this.style.opacity='0.8'"
+                  onmouseout="this.style.opacity='1'">
+                  💎 View Pricing
+                </button>
+              ` : ''}
+            </div>
+          </header>
+
+          <div style="background: ${surfaceColor}; border-radius: ${baseFontSize * 0.75}px; padding: ${baseFontSize * 2}px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: ${baseFontSize * 1.5}px;">
+            <form id="bioForm">
+              <div style="margin-bottom: ${baseFontSize * 1.5}px;">
+                <label for="bioText" style="display: block; font-weight: 600; margin-bottom: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 1}px; color: ${textColor};">
+                  Your Current LinkedIn Bio * <span style="font-weight: 400; opacity: 0.7;">(Go to your LinkedIn profile and copy your about section)</span>
+                </label>
+                <textarea 
+                  id="bioText" 
+                  required
+                  rows="6"
+                  placeholder="Paste your current LinkedIn bio here..."
+                  style="width: 100%; padding: ${baseFontSize * 0.75}px; border: 2px solid #e5e7eb; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize}px; font-family: inherit; resize: vertical; color: ${textColor}; background: white;"
+                >${appState.bioText}</textarea>
+              </div>
+
+              <div style="margin-bottom: ${baseFontSize * 1.5}px;">
+                <label for="industry" style="display: block; font-weight: 600; margin-bottom: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 1}px; color: ${textColor};">
+                  Your Industry *
+                </label>
+                <select 
+                  id="industry" 
+                  required
+                  style="width: 100%; padding: ${baseFontSize * 0.75}px; border: 2px solid #e5e7eb; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize}px; font-family: inherit; color: ${textColor}; background: white;">
+                  <option value="">Select your industry...</option>
+                  ${Object.keys(industryToneMap).map(ind => 
+                    `<option value="${ind}" ${appState.industry === ind ? 'selected' : ''}>${ind}</option>`
+                  ).join('')}
+                  <option value="Other" ${appState.industry === 'Other' ? 'selected' : ''}>Other</option>
+                </select>
+              </div>
+
+              ${appState.industry === 'Other' ? `
+                <div style="margin-bottom: ${baseFontSize * 1.5}px;">
+                  <label for="otherIndustry" style="display: block; font-weight: 600; margin-bottom: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 1}px; color: ${textColor};">
+                    Please specify your industry *
+                  </label>
+                  <input 
+                    type="text" 
+                    id="otherIndustry" 
+                    value="${appState.otherIndustry}"
+                    placeholder="Enter your industry..."
+                    required
+                    style="width: 100%; padding: ${baseFontSize * 0.75}px; border: 2px solid #e5e7eb; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize}px; font-family: inherit; color: ${textColor}; background: white;">
+                </div>
+              ` : ''}
+
+              <div style="margin-bottom: ${baseFontSize * 1.5}px;">
+                <label for="tone" style="display: block; font-weight: 600; margin-bottom: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 1}px; color: ${textColor};">
+                  Preferred Tone *
+                </label>
+                <select 
+                  id="tone" 
+                  required
+                  style="width: 100%; padding: ${baseFontSize * 0.75}px; border: 2px solid #e5e7eb; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize}px; font-family: inherit; color: ${textColor}; background: white;">
+                  <option value="">Select a tone...</option>
+                  <option value="Professional" ${appState.tone === 'Professional' ? 'selected' : ''}>Professional</option>
+                  <option value="Formal" ${appState.tone === 'Formal' ? 'selected' : ''}>Formal</option>
+                  <option value="Executive" ${appState.tone === 'Executive' ? 'selected' : ''}>Executive</option>
+                  <option value="Approachable" ${appState.tone === 'Approachable' ? 'selected' : ''}>Approachable</option>
+                  <option value="Technical" ${appState.tone === 'Technical' ? 'selected' : ''}>Technical</option>
+                  <option value="Bold" ${appState.tone === 'Bold' ? 'selected' : ''}>Bold</option>
+                  <option value="Client-Facing" ${appState.tone === 'Client-Facing' ? 'selected' : ''}>Client-Facing</option>
+                  <option value="Visionary" ${appState.tone === 'Visionary' ? 'selected' : ''}>Visionary</option>
+                </select>
+              </div>
+
+              <div style="margin-bottom: ${baseFontSize * 1.5}px;">
+                <button 
+                  type="button" 
+                  id="moreInfoToggle"
+                  style="background: none; border: none; color: ${primaryColor}; font-weight: 600; cursor: pointer; padding: 0; font-size: ${baseFontSize}px; text-decoration: underline; font-family: inherit;">
+                  ${appState.moreInfoExpanded ? '▼' : '▶'} Add More Details (Optional but Recommended)
+                </button>
+              </div>
+
+              ${appState.moreInfoExpanded ? `
+                <div id="moreInfoSection" class="fade-in" style="padding: ${baseFontSize * 1.25}px; background: ${bgColor}; border-radius: ${baseFontSize * 0.5}px; margin-bottom: ${baseFontSize * 1.5}px;">
+                  <div style="margin-bottom: ${baseFontSize * 1.25}px;">
+                    <label for="targetRole" style="display: block; font-weight: 600; margin-bottom: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.9375}px; color: ${textColor};">
+                      Target Role or Title
+                    </label>
+                    <input 
+                      type="text" 
+                      id="targetRole" 
+                      value="${appState.targetRole}"
+                      placeholder="${appState.industry && industryPlaceholders[appState.industry] ? industryPlaceholders[appState.industry].targetRole : 'e.g., Senior Product Manager'}"
+                      style="width: 100%; padding: ${baseFontSize * 0.625}px; border: 2px solid #e5e7eb; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.9375}px; font-family: inherit; color: ${textColor}; background: white;">
+                  </div>
+
+                  <div style="margin-bottom: ${baseFontSize * 1.25}px;">
+                    <label for="targetAudience" style="display: block; font-weight: 600; margin-bottom: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.9375}px; color: ${textColor};">
+                      Target Audience
+                    </label>
+                    <input 
+                      type="text" 
+                      id="targetAudience" 
+                      value="${appState.targetAudience}"
+                      placeholder="${appState.industry && industryPlaceholders[appState.industry] ? industryPlaceholders[appState.industry].targetAudience : 'e.g., Hiring Managers, Recruiters, C-Suite Executives'}"
+                      style="width: 100%; padding: ${baseFontSize * 0.625}px; border: 2px solid #e5e7eb; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.9375}px; font-family: inherit; color: ${textColor}; background: white;">
+                  </div>
+
+                  <div style="margin-bottom: ${baseFontSize * 1.25}px;">
+                    <label for="keyStrengths" style="display: block; font-weight: 600; margin-bottom: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.9375}px; color: ${textColor};">
+                      Key Strengths
+                    </label>
+                    <input 
+                      type="text" 
+                      id="keyStrengths" 
+                      value="${appState.keyStrengths}"
+                      placeholder="${appState.industry && industryPlaceholders[appState.industry] ? industryPlaceholders[appState.industry].keyStrengths : 'e.g., leadership, strategic thinking, problem-solving'}"
+                      style="width: 100%; padding: ${baseFontSize * 0.625}px; border: 2px solid #e5e7eb; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.9375}px; font-family: inherit; color: ${textColor}; background: white;">
+                  </div>
+
+                  <div style="margin-bottom: ${baseFontSize * 1.25}px;">
+                    <label for="keywords" style="display: block; font-weight: 600; margin-bottom: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.9375}px; color: ${textColor};">
+                      Industry Keywords
+                    </label>
+                    <input 
+                      type="text" 
+                      id="keywords" 
+                      value="${appState.keywords}"
+                      placeholder="${appState.industry && industryPlaceholders[appState.industry] ? industryPlaceholders[appState.industry].keywords : 'e.g., Project Management, Agile, Scrum, Data Analysis'}"
+                      style="width: 100%; padding: ${baseFontSize * 0.625}px; border: 2px solid #e5e7eb; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.9375}px; font-family: inherit; color: ${textColor}; background: white;">
+                  </div>
+
+                  <div style="margin-bottom: ${baseFontSize * 1.25}px;">
+                    <label for="certifications" style="display: block; font-weight: 600; margin-bottom: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.9375}px; color: ${textColor};">
+                      Certifications
+                    </label>
+                    <input 
+                      type="text" 
+                      id="certifications" 
+                      value="${appState.certifications}"
+                      placeholder="${appState.industry && industryPlaceholders[appState.industry] ? industryPlaceholders[appState.industry].certifications : 'e.g., PMP, CPA, AWS Certified'}"
+                      style="width: 100%; padding: ${baseFontSize * 0.625}px; border: 2px solid #e5e7eb; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.9375}px; font-family: inherit; color: ${textColor}; background: white;">
+                  </div>
+
+                  <div style="margin-bottom: ${baseFontSize * 1.25}px;">
+                    <label for="expertise" style="display: block; font-weight: 600; margin-bottom: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.9375}px; color: ${textColor};">
+                      Technical Expertise / Tools
+                    </label>
+                    <input 
+                      type="text" 
+                      id="expertise" 
+                      value="${appState.expertise}"
+                      placeholder="${appState.industry && industryPlaceholders[appState.industry] ? industryPlaceholders[appState.industry].expertise : 'e.g., Python, Salesforce, Excel, Adobe Creative Suite'}"
+                      style="width: 100%; padding: ${baseFontSize * 0.625}px; border: 2px solid #e5e7eb; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.9375}px; font-family: inherit; color: ${textColor}; background: white;">
+                  </div>
+
+                  <div>
+                    <label for="cta" style="display: block; font-weight: 600; margin-bottom: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.9375}px; color: ${textColor};">
+                      Call to Action
+                    </label>
+                    <input 
+                      type="text" 
+                      id="cta" 
+                      value="${appState.cta}"
+                      placeholder="${appState.industry && industryPlaceholders[appState.industry] ? industryPlaceholders[appState.industry].cta : 'e.g., Open to new opportunities and collaborations'}"
+                      style="width: 100%; padding: ${baseFontSize * 0.625}px; border: 2px solid #e5e7eb; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.9375}px; font-family: inherit; color: ${textColor}; background: white;">
+                  </div>
+                </div>
+              ` : ''}
+
+              ${appState.errorMessage ? `
+                <div style="background: #fee2e2; border: 1px solid #ef4444; color: #991b1b; padding: ${baseFontSize * 0.75}px; border-radius: ${baseFontSize * 0.5}px; margin-bottom: ${baseFontSize * 1.5}px; font-size: ${baseFontSize * 0.9375}px;">
+                  ${appState.errorMessage}
+                </div>
+              ` : ''}
+
+              <div style="display: flex; gap: ${baseFontSize * 0.75}px; flex-wrap: wrap;">
+                <button 
+                  type="submit" 
+                  id="submitBtn"
+                  ${isDisabled ? 'disabled' : ''}
+                  style="flex: 1; min-width: 200px; background: ${primaryColor}; color: white; padding: ${baseFontSize * 0.875}px ${baseFontSize * 1.5}px; border: none; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 1.0625}px; font-weight: 600; cursor: ${isDisabled ? 'not-allowed' : 'pointer'}; opacity: ${isDisabled ? '0.6' : '1'}; font-family: inherit; transition: background 0.2s;">
+                  ${appState.isGenerating ? 'Generating...' : (config.rewrite_button || defaultConfig.rewrite_button)}
+                </button>
+                <button 
+                  type="button" 
+                  id="resetBtn"
+                  style="background: ${secondaryColor}; color: white; padding: ${baseFontSize * 0.875}px ${baseFontSize * 1.5}px; border: none; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 1.0625}px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.2s;">
+                  ${config.reset_button || defaultConfig.reset_button}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          ${appState.generatedBio ? `
+            <div style="background: ${surfaceColor}; border-radius: ${baseFontSize * 0.75}px; padding: ${baseFontSize * 2}px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: ${baseFontSize * 1.5}px;" class="fade-in">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: ${baseFontSize * 1}px;">
+                <h2 style="font-size: ${baseFontSize * 1.5}px; font-weight: 700; margin: 0; color: ${textColor};">
+                  Your Rewritten Bio
+                </h2>
+                <button 
+                  id="copyBtn"
+                  style="background: ${appState.copySuccess ? '#10b981' : primaryColor}; color: white; padding: ${baseFontSize * 0.625}px ${baseFontSize * 1.25}px; border: none; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 0.9375}px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.2s;">
+                  ${appState.copySuccess ? '✓ Copied!' : (config.copy_button || defaultConfig.copy_button)}
+                </button>
+              </div>
+              <div style="background: ${bgColor}; padding: ${baseFontSize * 1.25}px; border-radius: ${baseFontSize * 0.5}px; line-height: 1.7; font-size: ${baseFontSize * 1}px; color: ${textColor}; white-space: pre-line;">
+${appState.generatedBio}
+              </div>
+            </div>
+          ` : ''}
+
+          ${appState.totalBiosRewritten > 0 ? `
+            <div style="background: linear-gradient(135deg, ${primaryColor}08, ${primaryColor}03); border-radius: ${baseFontSize * 0.75}px; padding: ${baseFontSize * 2}px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: ${baseFontSize * 1.5}px; border-left: 4px solid ${primaryColor};" class="fade-in">
+              <h3 style="font-size: ${baseFontSize * 1.375}px; font-weight: 700; color: ${textColor}; margin: 0 0 ${baseFontSize * 1.25}px 0; display: flex; align-items: center; gap: ${baseFontSize * 0.5}px;">
+                <svg style="width: ${baseFontSize * 1.5}px; height: ${baseFontSize * 1.5}px; fill: ${primaryColor};" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                  <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                </svg>
+                Your Progress
+              </h3>
+
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: ${baseFontSize * 1.25}px;">
+                
+                <div style="background: ${surfaceColor}; padding: ${baseFontSize * 1.25}px; border-radius: ${baseFontSize * 0.5}px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                  <div style="display: flex; align-items: center; gap: ${baseFontSize * 0.625}px; margin-bottom: ${baseFontSize * 0.625}px;">
+                    <svg style="width: ${baseFontSize * 1.125}px; height: ${baseFontSize * 1.125}px; fill: ${primaryColor};" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                      <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
+                    </svg>
+                    <p style="font-size: ${baseFontSize * 0.8125}px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: ${textColor}; opacity: 0.7; margin: 0;">
+                      Bios rewritten
+                    </p>
+                  </div>
+                  <p style="font-size: ${baseFontSize * 0.9375}px; color: ${textColor}; line-height: 1.5; margin: 0;">
+                    You've rewritten <strong>${appState.totalBiosRewritten} LinkedIn ${appState.totalBiosRewritten === 1 ? 'bio' : 'bios'}</strong>.
+                  </p>
+                </div>
+
+                <div style="background: ${surfaceColor}; padding: ${baseFontSize * 1.25}px; border-radius: ${baseFontSize * 0.5}px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                  <div style="display: flex; align-items: center; gap: ${baseFontSize * 0.625}px; margin-bottom: ${baseFontSize * 0.625}px;">
+                    <svg style="width: ${baseFontSize * 1.125}px; height: ${baseFontSize * 1.125}px; fill: ${primaryColor};" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+                    </svg>
+                    <p style="font-size: ${baseFontSize * 0.8125}px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: ${textColor}; opacity: 0.7; margin: 0;">
+                      Time saved
+                    </p>
+                  </div>
+                  <p style="font-size: ${baseFontSize * 0.9375}px; color: ${textColor}; line-height: 1.5; margin: 0;">
+                    Approximately <strong>${Math.round(appState.totalBiosRewritten * 25)} minutes saved</strong>.
+                  </p>
+                </div>
+
+              </div>
+            </div>
+          ` : ''}
+
+          ${(() => {
+            const insights = generatePersonalizedInsights();
+            if (insights.length === 0) return '';
+            
+            return `
+              <div style="background: linear-gradient(135deg, #8b5cf615, #8b5cf608); border-radius: ${baseFontSize * 0.75}px; padding: ${baseFontSize * 2}px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: ${baseFontSize * 1.5}px; border-left: 4px solid #8b5cf6;" class="fade-in">
+                <h3 style="font-size: ${baseFontSize * 1.375}px; font-weight: 700; color: ${textColor}; margin: 0 0 ${baseFontSize * 1.25}px 0; display: flex; align-items: center; gap: ${baseFontSize * 0.5}px;">
+                  <svg style="width: ${baseFontSize * 1.5}px; height: ${baseFontSize * 1.5}px; fill: #8b5cf6;" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/>
+                  </svg>
+                  Personalized Insights
+                </h3>
+
+                <div style="display: flex; flex-direction: column; gap: ${baseFontSize * 1}px;">
+                  ${insights.map(insight => `
+                    <div style="background: ${surfaceColor}; padding: ${baseFontSize * 1.25}px; border-radius: ${baseFontSize * 0.5}px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                      <div style="display: flex; align-items: flex-start; gap: ${baseFontSize * 0.75}px;">
+                        <div style="font-size: ${baseFontSize * 1.5}px; flex-shrink: 0; line-height: 1;">
+                          ${insight.icon}
+                        </div>
+                        <div style="flex: 1;">
+                          <p style="font-size: ${baseFontSize * 0.8125}px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: ${textColor}; opacity: 0.7; margin: 0 0 ${baseFontSize * 0.5}px 0;">
+                            ${insight.label}
+                          </p>
+                          <p style="font-size: ${baseFontSize * 0.9375}px; color: ${textColor}; line-height: 1.6; margin: 0;">
+                            ${insight.message.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `;
+          })()}
+
+          ${(() => {
+            const actions = generateNextBestActions();
+            if (actions.length === 0) return '';
+            
+            return `
+              <div style="background: linear-gradient(135deg, #10b98115, #10b98108); border-radius: ${baseFontSize * 0.75}px; padding: ${baseFontSize * 2}px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: ${baseFontSize * 1.5}px; border-left: 4px solid #10b981;" class="fade-in">
+                <h3 style="font-size: ${baseFontSize * 1.375}px; font-weight: 700; color: ${textColor}; margin: 0 0 ${baseFontSize * 0.625}px 0; display: flex; align-items: center; gap: ${baseFontSize * 0.5}px;">
+                  <svg style="width: ${baseFontSize * 1.5}px; height: ${baseFontSize * 1.5}px; fill: #10b981;" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clip-rule="evenodd"/>
+                  </svg>
+                  Next Best Actions
+                </h3>
+                <p style="font-size: ${baseFontSize * 0.875}px; color: ${textColor}; opacity: 0.8; margin: 0 0 ${baseFontSize * 1.25}px 0; line-height: 1.5;">
+                  Here are some practical next steps to build on your improved LinkedIn bio.
+                </p>
+
+                <div style="display: flex; flex-direction: column; gap: ${baseFontSize * 1}px;">
+                  ${actions.map(action => `
+                    <div style="background: ${surfaceColor}; padding: ${baseFontSize * 1.25}px; border-radius: ${baseFontSize * 0.5}px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                      <div style="display: flex; align-items: flex-start; gap: ${baseFontSize * 0.75}px;">
+                        <div style="font-size: ${baseFontSize * 1.5}px; flex-shrink: 0; line-height: 1;">
+                          ${action.icon}
+                        </div>
+                        <div style="flex: 1;">
+                          <p style="font-size: ${baseFontSize * 0.8125}px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: ${textColor}; opacity: 0.7; margin: 0 0 ${baseFontSize * 0.5}px 0;">
+                            ${action.label}
+                          </p>
+                          <p style="font-size: ${baseFontSize * 0.9375}px; color: ${textColor}; line-height: 1.6; margin: 0;">
+                            ${action.message}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `;
+          })()}
+        </div>
+
+        ${appState.showUpgradeModal ? renderUpgradeModal(customFont, baseFontSize, bgColor, textColor, primaryColor) : ''}
+      `;
+
+      attachEventListeners();
+    }
+
+    function renderPricingPage(app, config, customFont, baseFontSize, bgColor, surfaceColor, textColor, primaryColor, secondaryColor) {
+      app.innerHTML = `
+        <div style="max-width: 1200px; margin: 0 auto; padding: ${baseFontSize * 2}px ${baseFontSize * 1.5}px;">
+          <div style="margin-bottom: ${baseFontSize * 2}px;">
+            <button 
+              id="backToAppBtn"
+              style="background: transparent; border: none; color: ${primaryColor}; font-weight: 600; cursor: pointer; padding: ${baseFontSize * 0.5}px 0; font-size: ${baseFontSize}px; font-family: inherit; display: flex; align-items: center; gap: ${baseFontSize * 0.5}px; transition: opacity 0.2s;"
+              onmouseover="this.style.opacity='0.7'"
+              onmouseout="this.style.opacity='1'">
+              ← Back to Bio Rewriter
+            </button>
+          </div>
+
+          <header style="text-align: center; margin-bottom: ${baseFontSize * 3}px;">
+            <h1 style="font-size: ${baseFontSize * 2.5}px; font-weight: 700; margin-bottom: ${baseFontSize * 0.75}px; color: ${textColor};">
+              Unlock Your Full Career Toolkit
+            </h1>
+            <p style="font-size: ${baseFontSize * 1.125}px; color: ${textColor}; opacity: 0.8; max-width: 650px; margin: 0 auto;">
+              Upgrade to Pro Plus for unlimited rewrites and quarterly career readiness snapshots.
+            </p>
+          </header>
+
+          <div style="max-width: 400px; margin: 0 auto ${baseFontSize * 3}px auto;">
+            <div class="pricing-card recommended" style="background: ${surfaceColor}; position: relative;">
+              <div class="recommended-badge">BEST VALUE</div>
+              <div style="margin-bottom: ${baseFontSize * 1.5}px;">
+                <h3 style="font-size: ${baseFontSize * 1.75}px; font-weight: 700; margin: 0 0 ${baseFontSize * 0.5}px 0; color: ${textColor};">
+                  Pro Plus
+                </h3>
+                
+                <div style="margin-bottom: ${baseFontSize * 1}px;">
+                  <span style="font-size: ${baseFontSize * 2.5}px; font-weight: 700; color: ${primaryColor};">$79</span>
+                  <span style="font-size: ${baseFontSize}px; color: ${textColor}; opacity: 0.7;">/year</span>
+                </div>
+                
+                <p style="font-size: ${baseFontSize * 0.9375}px; color: ${textColor}; opacity: 0.8; line-height: 1.6; margin: 0;">
+                  Ongoing access to all tools plus new career tools added regularly.
+                </p>
+              </div>
+
+              <ul style="list-style: none; padding: 0; margin: 0 0 ${baseFontSize * 1.5}px 0;">
+                <li style="display: flex; align-items: flex-start; gap: ${baseFontSize * 0.75}px; margin-bottom: ${baseFontSize * 0.75}px; font-size: ${baseFontSize * 0.9375}px; color: ${textColor};">
+                  <svg style="width: ${baseFontSize * 1.25}px; height: ${baseFontSize * 1.25}px; fill: #10b981; flex-shrink: 0; margin-top: 2px;" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                  </svg>
+                  <span>Unlimited LinkedIn bio rewrites</span>
+                </li>
+                <li style="display: flex; align-items: flex-start; gap: ${baseFontSize * 0.75}px; margin-bottom: ${baseFontSize * 0.75}px; font-size: ${baseFontSize * 0.9375}px; color: ${textColor};">
+                  <svg style="width: ${baseFontSize * 1.25}px; height: ${baseFontSize * 1.25}px; fill: ${primaryColor}; flex-shrink: 0; margin-top: 2px;" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                  </svg>
+                  <span><strong>Quarterly Career Readiness Snapshots</strong></span>
+                </li>
+                <li style="display: flex; align-items: flex-start; gap: ${baseFontSize * 0.75}px; margin-bottom: ${baseFontSize * 0.75}px; font-size: ${baseFontSize * 0.9375}px; color: ${textColor};">
+                  <svg style="width: ${baseFontSize * 1.25}px; height: ${baseFontSize * 1.25}px; fill: ${primaryColor}; flex-shrink: 0; margin-top: 2px;" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                  </svg>
+                  <span><strong>New tools added monthly</strong></span>
+                </li>
+                <li style="display: flex; align-items: flex-start; gap: ${baseFontSize * 0.75}px; font-size: ${baseFontSize * 0.9375}px; color: ${textColor};">
+                  <svg style="width: ${baseFontSize * 1.25}px; height: ${baseFontSize * 1.25}px; fill: ${primaryColor}; flex-shrink: 0; margin-top: 2px;" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                  </svg>
+                  <span><strong>Continuous improvements</strong></span>
+                </li>
+              </ul>
+
+              <button 
+                id="buyProPlusBtn"
+                style="width: 100%; background: linear-gradient(135deg, ${primaryColor}, #0e5ca6); color: white; padding: ${baseFontSize}px ${baseFontSize * 1.5}px; border: none; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 1.0625}px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.2s; box-shadow: 0 4px 16px rgba(10, 102, 194, 0.3);"
+                onmouseover="this.style.transform='translateY(-2px)'"
+                onmouseout="this.style.transform='translateY(0)'">
+                Start Pro Plus
+              </button>
+              <p style="text-align: center; font-size: ${baseFontSize * 0.8125}px; color: ${textColor}; opacity: 0.6; margin: ${baseFontSize * 0.75}px 0 0 0;">
+                Cancel anytime.
+              </p>
+            </div>
+          </div>
+        </div>
+      `;
+
+      attachPricingEventListeners();
+    }
+
+    function renderUpgradeModal(customFont, baseFontSize, bgColor, textColor, primaryColor) {
+      return `
+        <div class="modal-backdrop" id="upgradeModal">
+          <div class="modal-content" style="font-family: ${customFont}, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+            <div style="text-align: center; margin-bottom: ${baseFontSize * 1.5}px;">
+              <div style="width: ${baseFontSize * 4}px; height: ${baseFontSize * 4}px; background: linear-gradient(135deg, ${primaryColor}, #0e5ca6); border-radius: 50%; margin: 0 auto ${baseFontSize * 1}px; display: flex; align-items: center; justify-content: center;">
+                <svg style="width: ${baseFontSize * 2}px; height: ${baseFontSize * 2}px; fill: white;" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                </svg>
+              </div>
+              <h2 style="font-size: ${baseFontSize * 1.75}px; font-weight: 700; color: ${textColor}; margin: 0 0 ${baseFontSize * 0.75}px 0;">
+                Unlock Unlimited LinkedIn Bio Rewrites
+              </h2>
+              <p style="font-size: ${baseFontSize * 1}px; color: ${textColor}; opacity: 0.8; line-height: 1.6; margin: 0;">
+                You've used your free rewrite for today. Upgrade to Pro Plus for unlimited rewrites and quarterly career readiness snapshots.
+              </p>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: ${baseFontSize * 0.75}px;">
+              <button 
+                id="viewFullPricingBtn"
+                style="background: linear-gradient(135deg, ${primaryColor}, #0e5ca6); color: white; padding: ${baseFontSize * 1}px ${baseFontSize * 2}px; border: none; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 1.0625}px; font-weight: 700; cursor: pointer; font-family: inherit; transition: transform 0.2s; box-shadow: 0 4px 12px rgba(10, 102, 194, 0.3);"
+                onmouseover="this.style.transform='translateY(-2px)'"
+                onmouseout="this.style.transform='translateY(0)'">
+                View Pricing Options
+              </button>
+              <button 
+                id="closeModalBtn"
+                style="background: transparent; color: ${textColor}; padding: ${baseFontSize * 0.75}px ${baseFontSize * 2}px; border: 2px solid #e5e7eb; border-radius: ${baseFontSize * 0.5}px; font-size: ${baseFontSize * 1}px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.2s;"
+                onmouseover="this.style.background='${bgColor}'"
+                onmouseout="this.style.background='transparent'">
+                Come back tomorrow
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function attachEventListeners() {
+      const form = document.getElementById('bioForm');
+      const bioText = document.getElementById('bioText');
+      const industry = document.getElementById('industry');
+      const tone = document.getElementById('tone');
+      const moreInfoToggle = document.getElementById('moreInfoToggle');
+      const resetBtn = document.getElementById('resetBtn');
+      const copyBtn = document.getElementById('copyBtn');
+      const closeModalBtn = document.getElementById('closeModalBtn');
+      const viewFullPricingBtn = document.getElementById('viewFullPricingBtn');
+      const viewPricingBtn = document.getElementById('viewPricingBtn');
+      const dismissSuccessBtn = document.getElementById('dismissSuccessBtn');
+      const dismissSnapshotBtn = document.getElementById('dismissSnapshotBtn');
+      const snapshotDismissBtn = document.getElementById('snapshotDismissBtn');
+      const snapshotRefineProfileBtn = document.getElementById('snapshotRefineProfileBtn');
+      const softReminderUpgradeBtn = document.getElementById('softReminderUpgradeBtn');
+      const dismissSoftReminderBtn = document.getElementById('dismissSoftReminderBtn');
+
+      if (bioText) bioText.addEventListener('input', (e) => { appState.bioText = e.target.value; });
+      
+      if (industry) {
+        industry.addEventListener('change', (e) => { 
+          appState.industry = e.target.value;
+          if (appState.industry && industryToneMap[appState.industry]) {
+            appState.tone = industryToneMap[appState.industry];
+          }
+          renderApp();
+        });
+      }
+
+      if (tone) tone.addEventListener('change', (e) => { appState.tone = e.target.value; });
+
+      if (moreInfoToggle) {
+        moreInfoToggle.addEventListener('click', () => {
+          appState.moreInfoExpanded = !appState.moreInfoExpanded;
+          renderApp();
+        });
+      }
+
+      if (appState.moreInfoExpanded) {
+        const targetRole = document.getElementById('targetRole');
+        const targetAudience = document.getElementById('targetAudience');
+        const keyStrengths = document.getElementById('keyStrengths');
+        const keywords = document.getElementById('keywords');
+        const certifications = document.getElementById('certifications');
+        const expertise = document.getElementById('expertise');
+        const cta = document.getElementById('cta');
+        const otherIndustry = document.getElementById('otherIndustry');
+
+        if (targetRole) targetRole.addEventListener('input', (e) => { appState.targetRole = e.target.value; });
+        if (targetAudience) targetAudience.addEventListener('input', (e) => { appState.targetAudience = e.target.value; });
+        if (keyStrengths) keyStrengths.addEventListener('input', (e) => { appState.keyStrengths = e.target.value; });
+        if (keywords) keywords.addEventListener('input', (e) => { appState.keywords = e.target.value; });
+        if (certifications) certifications.addEventListener('input', (e) => { appState.certifications = e.target.value; });
+        if (expertise) expertise.addEventListener('input', (e) => { appState.expertise = e.target.value; });
+        if (cta) cta.addEventListener('input', (e) => { appState.cta = e.target.value; });
+        if (otherIndustry) otherIndustry.addEventListener('input', (e) => { appState.otherIndustry = e.target.value; });
+      }
+
+      if (form) {
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          
+          if (!canUserRewrite()) {
+            appState.showUpgradeModal = true;
+            renderApp();
+            return;
+          }
+          
+          if (!appState.bioText.trim()) {
+            appState.errorMessage = 'Please enter your current LinkedIn bio';
+            renderApp();
+            return;
+          }
+          
+          if (!appState.industry) {
+            appState.errorMessage = 'Please select your industry';
+            renderApp();
+            return;
+          }
+          
+          if (!appState.tone) {
+            appState.errorMessage = 'Please select a tone';
+            renderApp();
+            return;
+          }
+          
+          await generateBio();
+        });
+      }
+
+      if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+          appState.bioText = '';
+          appState.industry = '';
+          appState.otherIndustry = '';
+          appState.tone = '';
+          appState.targetRole = '';
+          appState.targetAudience = '';
+          appState.keyStrengths = '';
+          appState.keywords = '';
+          appState.certifications = '';
+          appState.expertise = '';
+          appState.cta = '';
+          appState.moreInfoExpanded = false;
+          appState.generatedBio = '';
+          appState.errorMessage = '';
+          appState.copySuccess = false;
+          renderApp();
+        });
+      }
+
+      if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+          navigator.clipboard.writeText(appState.generatedBio);
+          appState.copySuccess = true;
+          renderApp();
+          setTimeout(() => {
+            appState.copySuccess = false;
+            renderApp();
+          }, 2000);
+        });
+      }
+
+      if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', () => {
+          appState.showUpgradeModal = false;
+          renderApp();
+        });
+      }
+
+      if (viewFullPricingBtn) {
+        viewFullPricingBtn.addEventListener('click', () => {
+          appState.showUpgradeModal = false;
+          appState.showPricingPage = true;
+          renderApp();
+        });
+      }
+
+      if (viewPricingBtn) {
+        viewPricingBtn.addEventListener('click', () => {
+          appState.showPricingPage = true;
+          renderApp();
+        });
+      }
+
+      if (dismissSuccessBtn) {
+        dismissSuccessBtn.addEventListener('click', () => {
+          appState.showUpgradeConfirmation = false;
+          renderApp();
+        });
+      }
+
+      if (dismissSnapshotBtn || snapshotDismissBtn) {
+        const dismissHandler = async () => {
+          await dismissQuarterlySnapshot();
+        };
+        if (dismissSnapshotBtn) dismissSnapshotBtn.addEventListener('click', dismissHandler);
+        if (snapshotDismissBtn) snapshotDismissBtn.addEventListener('click', dismissHandler);
+      }
+
+      if (snapshotRefineProfileBtn) {
+        snapshotRefineProfileBtn.addEventListener('click', async () => {
+          await dismissQuarterlySnapshot();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      }
+
+      if (softReminderUpgradeBtn) {
+        softReminderUpgradeBtn.addEventListener('click', () => {
+          appState.showPricingPage = true;
+          renderApp();
+        });
+      }
+
+      if (dismissSoftReminderBtn) {
+        dismissSoftReminderBtn.addEventListener('click', () => {
+          appState.softReminderDismissed = true;
+          renderApp();
+        });
+      }
+    }
+
+    function attachPricingEventListeners() {
+      const backToAppBtn = document.getElementById('backToAppBtn');
+      const buyProPlusBtn = document.getElementById('buyProPlusBtn');
+
+      if (backToAppBtn) {
+        backToAppBtn.addEventListener('click', () => {
+          appState.showPricingPage = false;
+          renderApp();
+        });
+      }
+
+      if (buyProPlusBtn) {
+        buyProPlusBtn.addEventListener('click', async () => {
+          await upgradeToPaid();
+        });
+      }
+    }
+
+    async function onConfigChange(config) {
+      renderApp();
+    }
+
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange,
+        mapToCapabilities: (config) => ({
+          recolorables: [
+            {
+              get: () => config.background_color || defaultConfig.background_color,
+              set: (value) => {
+                config.background_color = value;
+                window.elementSdk.setConfig({ background_color: value });
+              }
+            },
+            {
+              get: () => config.surface_color || defaultConfig.surface_color,
+              set: (value) => {
+                config.surface_color = value;
+                window.elementSdk.setConfig({ surface_color: value });
+              }
+            },
+            {
+              get: () => config.text_color || defaultConfig.text_color,
+              set: (value) => {
+                config.text_color = value;
+                window.elementSdk.setConfig({ text_color: value });
+              }
+            },
+            {
+              get: () => config.primary_action_color || defaultConfig.primary_action_color,
+              set: (value) => {
+                config.primary_action_color = value;
+                window.elementSdk.setConfig({ primary_action_color: value });
+              }
+            },
+            {
+              get: () => config.secondary_action_color || defaultConfig.secondary_action_color,
+              set: (value) => {
+                config.secondary_action_color = value;
+                window.elementSdk.setConfig({ secondary_action_color: value });
+              }
+            }
+          ],
+          borderables: [],
+          fontEditable: {
+            get: () => config.font_family || defaultConfig.font_family,
+            set: (value) => {
+              config.font_family = value;
+              window.elementSdk.setConfig({ font_family: value });
+            }
+          },
+          fontSizeable: {
+            get: () => config.font_size || defaultConfig.font_size,
+            set: (value) => {
+              config.font_size = value;
+              window.elementSdk.setConfig({ font_size: value });
+            }
+          }
+        }),
+        mapToEditPanelValues: (config) => new Map([
+          ['main_title', config.main_title || defaultConfig.main_title],
+          ['subtitle', config.subtitle || defaultConfig.subtitle],
+          ['rewrite_button', config.rewrite_button || defaultConfig.rewrite_button],
+          ['reset_button', config.reset_button || defaultConfig.reset_button],
+          ['copy_button', config.copy_button || defaultConfig.copy_button]
+        ])
+      });
+    }
+
+    initializeDataSDK().then(() => {
+      renderApp();
+    });
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9b6f680513f4b256',t:'MTc2NzI0MzEzNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
